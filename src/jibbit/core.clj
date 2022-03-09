@@ -90,11 +90,14 @@
 
 (defn add-file-entries-layer
   "build one layer"
-  [^JibContainerBuilder b {layer-name :name build-layer :fn}]
-  (.addFileEntriesLayer b (.build
-                           (doto (FileEntriesLayer/builder)
-                             (.setName layer-name)
-                             build-layer))))
+  [^JibContainerBuilder b {layer-name :name build-layer :fn args :args}]
+  (.addFileEntriesLayer b (let [builder (FileEntriesLayer/builder)
+                                resolved-build-layer (requiring-resolve build-layer)]
+                            (.setName builder layer-name)
+                            (if args
+                              (resolved-build-layer builder args)
+                              (resolved-build-layer builder))
+                            (.build builder))))
 
 (defn add-all-layers!
   "add all layers to the jib builder"
@@ -102,21 +105,26 @@
   (doseq [l layers]
     (add-file-entries-layer b l)))
 
-(defn clojure-app-layers
+(defn clojure-dependency-layer-builder
+  [^FileEntriesLayer$Builder layer-builder {:keys [basis working-dir]}]
+  (doseq [^File f (libs basis)]
+    (if (.isDirectory f)
+      (.addEntryRecursive layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f)))
+      (.addEntry layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f))))))
+
+(defn clojure-application-layer-builder
+  [^FileEntriesLayer$Builder layer-builder {:keys [aot basis jar-file jar-name working-dir]}]
+  (if aot
+    (.addEntry layer-builder (get-path jar-file) (docker-path working-dir jar-name))
+    (doseq [p (paths basis)]
+      (.addEntryRecursive layer-builder (get-path (b/resolve-path p)) (docker-path working-dir p)))))
+
+(def clojure-app-layers
   "use basis to create a dependencies and an app layer"
-  [{:keys [aot basis jar-file jar-name working-dir]}]
   [{:name "dependencies layer"
-    :fn (fn [^FileEntriesLayer$Builder layer-builder]
-          (doseq [^File f (libs basis)]
-            (if (.isDirectory f)
-              (.addEntryRecursive layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f)))
-              (.addEntry layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f))))))}
+    :fn 'clojure-dependency-layer-builder}
    {:name "clojure application layer"
-    :fn (fn [^FileEntriesLayer$Builder layer-builder]
-          (if aot
-            (.addEntry layer-builder (get-path jar-file) (docker-path working-dir jar-name))
-            (doseq [p (paths basis)]
-              (.addEntryRecursive layer-builder (get-path (b/resolve-path p)) (docker-path working-dir p)))))}])
+    :fn 'clojure-application-layer-builder}])
 
 (defn jib-build
   "Containerize using jib
@@ -126,7 +134,7 @@
          else copy source/resource paths too
      - try to set a non-root user
      - add org.opencontainer LABEL image metadata from current HEAD commit"
-  [{:keys [git-url base-image target-image working-dir tag debug]
+  [{:keys [git-url base-image target-image working-dir layers tag debug]
     :or {base-image {:image-name "gcr.io/distroless/java"
                      :type :registry}
          target-image {:image-name "app.tar"
@@ -144,7 +152,9 @@
      (.addLabel "org.opencontainers.image.source" git-url)
      (.addLabel "com.atomist.containers.image.build" "clj -Tjib build")
      (.setWorkingDirectory (docker-path working-dir))
-     (add-all-layers! (clojure-app-layers (assoc c :working-dir working-dir)))
+     (add-all-layers! (if layers
+                        layers
+                        clojure-app-layers))
      (set-user! (assoc c :base-image base-image))
      (.setEntrypoint (entry-point c)))
    (-> (cond-> target-image
@@ -224,4 +234,15 @@
                                 :type :registry}
                    :target-image {:image-name "gcr.io/personalsdm-216019/distroless-jib-clojure"
                                   :authorizer {:fn 'jibbit.gcloud/authorizer}
-                                  :type :docker}}}))
+                                  :type :docker}}})
+
+
+  (build {:project-dir "../kafka-deploy"
+          :config      {:main         "main"
+                        :aliases       [:build-config]
+                        :git-url      "https://github.com"
+                        :base-image   {:image-name "gcr.io/distroless/java"
+                                       :type       :registry}
+                        :target-image {:image-name "gcr.io/breezeehr.com/breeze-ehr/distroless-kafka"
+                                       :authorizer {:fn 'jibbit.gcloud/authorizer}
+                                       :type       :registry}}}))
