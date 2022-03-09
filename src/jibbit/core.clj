@@ -74,21 +74,32 @@
     :else
     target-image))
 
+(defn base-java-entrypoint [config {:keys [basis]}]
+  (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
+        (-> basis :classpath-args :jvm-opts)))
+
+(defn simple-jar-entrypoint [config {:keys [jar-name] :as c}]
+  (into (base-java-entrypoint config c)
+        ["-jar" jar-name]))
+
+(defn full-java-entrypoint [config {:keys [basis main] :as c}]
+  (into (base-java-entrypoint config c)
+        (if-let [main-opts (-> basis :classpath-args :main-opts)]
+          main-opts
+          ["-m" (pr-str main)])))
+
+(defn render-entrypoint [{f :fn :as config} c]
+  (if-some [entrypoint-fn @(requiring-resolve f)]
+    (entrypoint-fn config c)
+    (throw (ex-info (str (pr-str f) " cannot be resolved") {:f f}))))
 ;; assumes aot-ed jar is in root of WORKDIR
 (defn entry-point
-  [{:keys [basis aot jar-name main entrypoint]}]
+  [{:keys [aot entrypoint] :as c}]
   (if entrypoint
     entrypoint
-    (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
-          (concat
-            (-> basis :classpath-args :jvm-opts)
-            (if aot
-              ["-jar" jar-name]
-              (concat
-                ["-cp" (container-cp basis) "clojure.main"]
-                (if-let [main-opts (-> basis :classpath-args :main-opts)]
-                  main-opts
-                  ["-m" (pr-str main)])))))))
+    (if aot
+      {:fn 'simple-jar-entrypoint}
+      {:fn 'full-java-entrypoint})))
 
 (defn add-file-entries-layer
   "build one layer"
@@ -158,7 +169,7 @@
                         layers
                         clojure-app-layers))
      (set-user! (assoc c :base-image base-image))
-     (.setEntrypoint (entry-point c)))
+     (.setEntrypoint (render-entrypoint (entry-point c) c)))
    (-> (cond-> target-image
          tag (assoc :tag tag))
        add-tags
