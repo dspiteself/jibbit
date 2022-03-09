@@ -76,17 +76,19 @@
 
 ;; assumes aot-ed jar is in root of WORKDIR
 (defn entry-point
-  [{:keys [basis aot jar-name main]}]
-  (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
-        (concat
-         (-> basis :classpath-args :jvm-opts)
-         (if aot
-           ["-jar" jar-name]
-           (concat
-            ["-cp" (container-cp basis) "clojure.main"]
-            (if-let [main-opts (-> basis :classpath-args :main-opts)]
-              main-opts
-              ["-m" (pr-str main)]))))))
+  [{:keys [basis aot jar-name main entrypoint]}]
+  (if entrypoint
+    entrypoint
+    (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
+          (concat
+            (-> basis :classpath-args :jvm-opts)
+            (if aot
+              ["-jar" jar-name]
+              (concat
+                ["-cp" (container-cp basis) "clojure.main"]
+                (if-let [main-opts (-> basis :classpath-args :main-opts)]
+                  main-opts
+                  ["-m" (pr-str main)])))))))
 
 (defn add-file-entries-layer
   "build one layer"
