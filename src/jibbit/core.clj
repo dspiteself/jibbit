@@ -96,7 +96,7 @@
           ["-m" (pr-str main)]))))
 
 (defn render-entrypoint [{f :fn :as config} c]
-  (if-some [entrypoint-fn @(requiring-resolve f)]
+  (if-some [entrypoint-fn (requiring-resolve f)]
     (entrypoint-fn config c)
     (throw (ex-info (str (pr-str f) " cannot be resolved") {:f f}))))
 ;; assumes aot-ed jar is in root of WORKDIR
@@ -105,8 +105,8 @@
   (if entrypoint
     entrypoint
     (if aot
-      {:fn `simple-jar-entrypoint}
-      {:fn `full-java-entrypoint})))
+      {:fn 'jibbit.core/simple-jar-entrypoint}
+      {:fn 'jibbit.core/full-java-entrypoint})))
 
 (defn add-file-entries-layer
   "build one layer"
@@ -140,9 +140,9 @@
 (def clojure-app-layers
   "use basis to create a dependencies and an app layer"
   [{:name "dependencies layer"
-    :fn `clojure-dependency-layer-builder}
+    :fn 'jibbit.core/clojure-dependency-layer-builder}
    {:name "clojure application layer"
-    :fn `clojure-application-layer-builder}])
+    :fn 'jibbit.core/clojure-application-layer-builder}])
 
 (defn jib-build
   "Containerize using jib
