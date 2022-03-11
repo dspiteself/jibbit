@@ -114,9 +114,7 @@
   (.addFileEntriesLayer b (let [builder (FileEntriesLayer/builder)
                                 resolved-build-layer (requiring-resolve build-layer)]
                             (.setName builder layer-name)
-                            (if args
-                              (resolved-build-layer builder args)
-                              (resolved-build-layer builder))
+                            (resolved-build-layer builder args)
                             (.build builder))))
 
 (defn add-all-layers!
