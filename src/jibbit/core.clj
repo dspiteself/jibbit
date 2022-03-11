@@ -78,15 +78,22 @@
   (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
         (-> basis :classpath-args :jvm-opts)))
 
+(defn raw-java-entrypoint [{main :main args :args} config {:keys [basis] :as c}]
+  (-> (base-java-entrypoint config c)
+      (into ["-cp" (container-cp basis) main])
+      (into args)))
+
 (defn simple-jar-entrypoint [config {:keys [jar-name] :as c}]
   (into (base-java-entrypoint config c)
         ["-jar" jar-name]))
 
 (defn full-java-entrypoint [config {:keys [basis main] :as c}]
-  (into (base-java-entrypoint config c)
+  (-> (base-java-entrypoint config c)
+      (into ["-cp" (container-cp basis) "clojure.main"])
+      (into
         (if-let [main-opts (-> basis :classpath-args :main-opts)]
           main-opts
-          ["-m" (pr-str main)])))
+          ["-m" (pr-str main)]))))
 
 (defn render-entrypoint [{f :fn :as config} c]
   (if-some [entrypoint-fn @(requiring-resolve f)]
@@ -256,6 +263,6 @@
                         :git-url      "https://github.com"
                         :base-image   {:image-name "gcr.io/distroless/java"
                                        :type       :registry}
-                        :target-image {:image-name "gcr.io/breezeehr.com/breeze-ehr/distroless-kafka"
+                        :target-image {:image-name "gcr.io/breezeehr.com/breeze-ehr/distroless-kafka-test"
                                        :authorizer {:fn 'jibbit.gcloud/authorizer}
                                        :type       :registry}}}))
