@@ -105,8 +105,8 @@
   (if entrypoint
     entrypoint
     (if aot
-      {:fn 'simple-jar-entrypoint}
-      {:fn 'full-java-entrypoint})))
+      {:fn `simple-jar-entrypoint}
+      {:fn `full-java-entrypoint})))
 
 (defn add-file-entries-layer
   "build one layer"
@@ -142,9 +142,9 @@
 (def clojure-app-layers
   "use basis to create a dependencies and an app layer"
   [{:name "dependencies layer"
-    :fn 'clojure-dependency-layer-builder}
+    :fn `clojure-dependency-layer-builder}
    {:name "clojure application layer"
-    :fn 'clojure-application-layer-builder}])
+    :fn `clojure-application-layer-builder}])
 
 (defn jib-build
   "Containerize using jib
