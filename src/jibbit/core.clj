@@ -78,10 +78,13 @@
   (into ["java" "-Dclojure.main.report=stderr" "-Dfile.encoding=UTF-8"]
         (-> basis :classpath-args :jvm-opts)))
 
-(defn raw-java-entrypoint [{main :main args :args} config {:keys [basis] :as c}]
+(defn raw-java-entrypoint [{main :main args :args :as config} {:keys [basis] :as c}]
   (-> (base-java-entrypoint config c)
-      (into ["-cp" (container-cp basis) main])
-      (into args)))
+      (into ["-cp" (container-cp basis)])
+      (cond->
+        main (conj main))
+      (into args)
+      (doto prn)))
 
 (defn simple-jar-entrypoint [config {:keys [jar-name] :as c}]
   (into (base-java-entrypoint config c)
@@ -96,7 +99,8 @@
           ["-m" (pr-str main)]))))
 
 (defn render-entrypoint [{f :fn :as config} c]
-  (if-some [entrypoint-fn (requiring-resolve f)]
+  (prn f)
+  (if-some [entrypoint-fn (resolve f)]
     (entrypoint-fn config c)
     (throw (ex-info (str (pr-str f) " cannot be resolved") {:f f}))))
 ;; assumes aot-ed jar is in root of WORKDIR
