@@ -114,28 +114,28 @@
 
 (defn add-file-entries-layer
   "build one layer"
-  [^JibContainerBuilder b {layer-name :name build-layer :fn args :args}]
+  [^JibContainerBuilder b config {layer-name :name build-layer :fn args :args}]
   (.addFileEntriesLayer b (let [builder (FileEntriesLayer/builder)
                                 resolved-build-layer (requiring-resolve build-layer)]
                             (.setName builder layer-name)
-                            (resolved-build-layer builder args)
+                            (resolved-build-layer builder config args)
                             (.build builder))))
 
 (defn add-all-layers!
   "add all layers to the jib builder"
-  [^JibContainerBuilder b layers]
+  [^JibContainerBuilder b config layers]
   (doseq [l layers]
-    (add-file-entries-layer b l)))
+    (add-file-entries-layer b config l)))
 
 (defn clojure-dependency-layer-builder
-  [^FileEntriesLayer$Builder layer-builder {:keys [basis working-dir]}]
+  [^FileEntriesLayer$Builder layer-builder {:keys [basis working-dir]} args]
   (doseq [^File f (libs basis)]
     (if (.isDirectory f)
       (.addEntryRecursive layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f)))
       (.addEntry layer-builder (.toPath f) (docker-path working-dir "lib" (.getName f))))))
 
 (defn clojure-application-layer-builder
-  [^FileEntriesLayer$Builder layer-builder {:keys [aot basis jar-file jar-name working-dir]}]
+  [^FileEntriesLayer$Builder layer-builder {:keys [aot basis jar-file jar-name working-dir]} args]
   (if aot
     (.addEntry layer-builder (get-path jar-file) (docker-path working-dir jar-name))
     (doseq [p (paths basis)]
@@ -174,7 +174,7 @@
      (.addLabel "org.opencontainers.image.source" git-url)
      (.addLabel "com.atomist.containers.image.build" "clj -Tjib build")
      (.setWorkingDirectory (docker-path working-dir))
-     (add-all-layers! (if layers
+     (add-all-layers! c (if layers
                         layers
                         clojure-app-layers))
      (set-user! (assoc c :base-image base-image))
